@@ -1,83 +1,137 @@
 import React, { useState } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+} from "@tanstack/react-table";
+import "./EditableTable.css";
 
-const initialRow = {
-  col1: '',
-  col2: '',
-  col3: '',
-  col4: '',
-  col5: '',
-  col6: '',
-  col7: '',
-  col8: '',
-  col9: '',
+const defaultRow = (columns) => {
+  const row = {
+    id: Date.now() + Math.random().toString(36).slice(2),
+  };
+  columns.forEach((col) => {
+    row[col] = "";
+  });
+  return row;
 };
 
 export default function EditableTable() {
-  function generateId() {
-    return Date.now() + Math.random().toString(36).substr(2, 9);
-  }
+  const [columnCount, setColumnCount] = useState(9);
+  const [columnsDef, setColumnsDef] = useState(
+    Array.from({ length: 9 }, (_, i) => `col${i + 1}`)
+  );
+  const [data, setData] = useState([defaultRow(columnsDef)]);
 
-  const [rows, setRows] = useState([{ id: generateId(), ...initialRow }]);
-  const columns = Object.keys(initialRow);
-
-  function updateCell(rowId, colName, value) {
-    setRows(prevRows => {
-      const newRows = prevRows.map(row =>
-        row.id === rowId ? { ...row, [colName]: value } : row
-      );
-      console.log("Updated rows:", newRows);
-      return newRows;
+  const updateData = (rowIndex, columnId, value) => {
+    setData((old) => {
+      const newData = [...old];
+      newData[rowIndex] = {
+        ...newData[rowIndex],
+        [columnId]: value,
+      };
+      return newData;
     });
-  }
+  };
 
-  function addRow() {
-    setRows(prevRows => [...prevRows, { id: generateId(), ...initialRow }]);
-  }
+  const removeRow = (rowIndex) => {
+    setData((old) => old.filter((_, idx) => idx !== rowIndex));
+  };
 
-  console.log("Rendering rows:", rows);
+  const addRow = () => {
+    setData((old) => [...old, defaultRow(columnsDef)]);
+  };
+
+  const addColumn = () => {
+    const newCol = `col${columnCount + 1}`;
+    const newColumnsDef = [...columnsDef, newCol];
+    setColumnCount(columnCount + 1);
+    setColumnsDef(newColumnsDef);
+    setData((oldData) =>
+      oldData.map((row) => ({ ...row, [newCol]: "" }))
+    );
+  };
+
+  const removeColumn = () => {
+    if (columnCount <= 1) return;
+    const newColumnsDef = columnsDef.slice(0, -1);
+    const colToRemove = columnsDef[columnsDef.length - 1];
+    setColumnCount(columnCount - 1);
+    setColumnsDef(newColumnsDef);
+    setData((oldData) =>
+      oldData.map(({ [colToRemove]: _, ...rest }) => rest)
+    );
+  };
+
+  const handleSubmit = () => {
+    console.log("Submitting data:", data);
+    // Placeholder for future SQL submission logic
+  };
+
+  const columns = columnsDef.map((colId) => ({
+    accessorKey: colId,
+    header: colId.toUpperCase(),
+    cell: ({ row, column }) => (
+      <input
+        defaultValue={data[row.index][column.id]}
+        onBlur={(e) => updateData(row.index, column.id, e.target.value)}
+        className="input"
+        placeholder={`Enter ${column.id}`}
+      />
+    ),
+  }));
+
+  columns.push({
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => (
+      <button className="delete-button" onClick={() => removeRow(row.index)}>
+        Delete
+      </button>
+    ),
+  });
+
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  });
 
   return (
-    <div className="p-4">
-      <table className="border-collapse border border-gray-300 w-full">
+    <div className="table-wrapper">
+      <div className="controls">
+        <button className="add-button" onClick={addRow}>Add Row</button>
+        <button className="add-button" onClick={addColumn}>Add Column</button>
+        <button className="delete-button" onClick={removeColumn}>Remove Column</button>
+        <button className="submit-button" onClick={handleSubmit}>Submit</button>
+      </div>
+      <table className="table">
         <thead>
-          <tr>
-            {columns.map(col => (
-              <th key={col} className="border border-gray-300 bg-gray-100 p-2 text-left">
-                {col.toUpperCase()}
-              </th>
-            ))}
-          </tr>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <th key={header.id}>
+                  {flexRender(
+                    header.column.columnDef.header,
+                    header.getContext()
+                  )}
+                </th>
+              ))}
+            </tr>
+          ))}
         </thead>
         <tbody>
-          {rows.map(row => (
+          {table.getRowModel().rows.map((row) => (
             <tr key={row.id}>
-              {columns.map(col => (
-                <td key={col} className="border border-gray-300 p-1">
-                  <input
-                    type="text"
-                    value={row[col]}
-                    onChange={e => updateCell(row.id, col, e.target.value)}
-                    className="w-full p-1 border-none outline-none"
-                    placeholder={`Enter ${col}`}
-                  />
+              {row.getVisibleCells().map((cell) => (
+                <td key={cell.id}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
       </table>
-      <button 
-        onClick={addRow} 
-        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-      >
-        Add Row
-      </button>
-      
-      {/* Debug info */}
-      <div className="mt-4 p-2 bg-gray-100 rounded text-sm">
-        <strong>Debug Info:</strong>
-        <pre>{JSON.stringify(rows, null, 2)}</pre>
-      </div>
     </div>
   );
 }
